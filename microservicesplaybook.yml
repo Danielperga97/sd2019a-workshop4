@@ -10,6 +10,14 @@
     - unzip 
     - curl 
     tags: packages
+  - name: instalar epel-release
+    yum:
+      name: epel-release
+      state: present
+  - name: instalar pip
+    yum:
+      name: python-pip
+      state: present
   - name: verificar que la configurarcion no exista
     stat:
       path: /etc/consul.d
@@ -44,20 +52,45 @@
     service:
       name: firewalld
       state: restarted
-  - name: run consul 
-    command: consul agent -server -bootstrap-expect=1 \ -data-dir=/etc/consul/data -node=agent-server -bind=192.168.56.102 \   -enable-script-checks=true -config-dir=/etc/consul.d -client 0.0.0.0
+  - pip:
+      name: flask 
+
+  - name: verificar que el script A no exista 
+    stat:
+      path: /etc/consul.d
+    register: scriptA_exists
+
+  - name: download microservice A file 
+    get_url:
+      url: https://raw.githubusercontent.com/ICESI/ds-discovery-service/master/sources/microservice_a.py 
+      dest: /home/microservices/microservice_a.py
     become: yes
-    become_user: consul 
+    become_user: microservices
     become_method: sudo
-    async: 5 
+    when: not scriptA_exists.stat.exists and inventory_hostname in groups['microserviceA'] 
+  - name: run microservice A 
+    command: python /home/microservices/microservices.py 
+    become: yes
+    become_user: microservices 
+    become_method: sudo
+    async: 5
+    poll: 0
+    when: scriptA_exists.stat.exists and inventory_hostname in groups['microserviceA']
+
+  - name: run consul
+    command:  "echo '{\"service\": {\"name\": \"microservice-a\", \"tags\": [\"flask\"], \"port\": 8080, \"check\": {\"script\": \"curl localhost:8080/health >/dev/null 2>&1\", \"interval\": \"10s\"}}}' >/etc/consul.d/microservice-a.json"
+    become: yes
+    become_user: consul
+    become_method: sudo
+    async: 5
     poll: 0
 
-
-
-
-
-
-
-
+  - name: join discovery service  
+    command: consul join 192.168.56.102 
+    become: yes
+    become_user: microservices
+    become_method: sudo
+    async: 5
+    poll: 0
 
 

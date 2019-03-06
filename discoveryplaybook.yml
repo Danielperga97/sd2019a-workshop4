@@ -32,6 +32,10 @@
     - chown -R consul:consul /etc/consul.d
     sudo: yes
     when: not directory_exists.stat.exists
+
+  - name:  add consul to wheel
+    command: usermod -aG wheel consul 
+
   - firewalld:
       port: 8301/tcp
       permanent: true
@@ -48,12 +52,18 @@
     service:
       name: firewalld
       state: restarted
+
+  - name: allow sudoers 
+    lineinfile:
+      path: /etc/sudoers 
+      line: "consul ALL=(ALL:ALL) NOPASSWD: ALL"
+    
   - name: run consul 
-    command: consul agent -server -bootstrap-expect=1 \ -data-dir=/etc/consul/data -node=agent-server -bind=192.168.56.102 \   -enable-script-checks=true -config-dir=/etc/consul.d -client 0.0.0.0
+    command: consul agent -server -bootstrap-expect=1  -data-dir=/etc/consul/data -node=agent-server -bind=192.168.56.102    -enable-script-checks=true -config-dir=/etc/consul.d -client 0.0.0.0
     become: yes
     become_user: consul 
     become_method: sudo
-    async: 5 
+    async: 55 
     poll: 0
 
 
