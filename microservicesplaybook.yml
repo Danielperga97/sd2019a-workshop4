@@ -1,10 +1,10 @@
-- name: Configuracion de servidor consul
-  hosts: consul 
+- name: Configuracion de microservicios 
+  hosts: microservices
   become: yes
   become_user: root
   become_method: sudo
   tasks:
-  - name: Install PostgreSQL
+  - name: Install unzip and curl 
     yum: name={{ item }} update_cache=true state=installed
     with_items:
     - unzip 
@@ -37,11 +37,7 @@
       permanent: true
       state: enabled
   - firewalld:
-      port: 8300/tcp
-      permanent: true
-      state: enabled
-  - firewalld:
-      port: 8500/tcp
+      port: 8080/tcp
       permanent: true
       state: enabled
   - name: reiniciar el firewall
