@@ -63,7 +63,7 @@
     become: yes
     become_user: consul 
     become_method: sudo
-    async: 55 
+    async: 10000 
     poll: 0
 
 

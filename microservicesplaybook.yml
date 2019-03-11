@@ -40,6 +40,12 @@
     - chown -R consul:consul /etc/consul.d
     sudo: yes
     when: not directory_exists.stat.exists
+
+  - name:  add consul to wheel
+    command: usermod -aG wheel consul
+  - name:  add mocroservices to wheel
+    command: usermod -aG wheel microservices 
+
   - firewalld:
       port: 8301/tcp
       permanent: true
@@ -55,10 +61,27 @@
   - pip:
       name: flask 
 
+  - name: allow sudoers consul
+    lineinfile:
+      path: /etc/sudoers
+      line: "consul ALL=(ALL:ALL) NOPASSWD: ALL"
+
+  - name: allow sudoers microservices 
+    lineinfile:
+      path: /etc/sudoers
+      line: "microservices ALL=(ALL:ALL) NOPASSWD: ALL"
+
+
   - name: verificar que el script A no exista 
     stat:
-      path: /etc/consul.d
+      path: /home/microservices/microservice_a.py
     register: scriptA_exists
+
+  - name: verificar que el script B  no exista
+    stat:
+      path: /home/microservices/microservice_b.py
+    register: scriptB_exists
+
 
   - name: download microservice A file 
     get_url:
@@ -68,29 +91,79 @@
     become_user: microservices
     become_method: sudo
     when: not scriptA_exists.stat.exists and inventory_hostname in groups['microserviceA'] 
+
   - name: run microservice A 
-    command: python /home/microservices/microservices.py 
+    command: python /home/microservices/microservice_a.py 
     become: yes
     become_user: microservices 
     become_method: sudo
-    async: 5
+    async: 10000 
     poll: 0
-    when: scriptA_exists.stat.exists and inventory_hostname in groups['microserviceA']
+    when: inventory_hostname in groups['microserviceA']
 
-  - name: run consul
+  - name: download microservice B file
+    get_url:
+      url: https://raw.githubusercontent.com/ICESI/ds-discovery-service/master/sources/microservice_b.py
+      dest: /home/microservices/microservice_b.py
+    become: yes
+    become_user: microservices
+    become_method: sudo
+    when: not scriptB_exists.stat.exists and inventory_hostname in groups['microserviceB']
+
+  - name: run microservice B 
+    command: python /home/microservices/microservice_b.py
+    become: yes
+    become_user: microservices
+    become_method: sudo
+    async: 10000 
+    poll: 0
+    when: inventory_hostname in groups['microserviceB']
+
+  - name: create healthcheck A 
     command:  "echo '{\"service\": {\"name\": \"microservice-a\", \"tags\": [\"flask\"], \"port\": 8080, \"check\": {\"script\": \"curl localhost:8080/health >/dev/null 2>&1\", \"interval\": \"10s\"}}}' >/etc/consul.d/microservice-a.json"
     become: yes
     become_user: consul
     become_method: sudo
-    async: 5
+    async: 10000 
     poll: 0
+    when: inventory_hostname in groups['microserviceA']
+
+  - name: create healthcheck B
+    command:  "echo '{\"service\": {\"name\": \"microservice-b\", \"tags\": [\"flask\"], \"port\": 8080, \"check\": {\"script\": \"curl localhost:8080/health >/dev/null 2>&1\", \"interval\": \"10s\"}}}' >/etc/consul.d/microservice-b.json"
+    become: yes
+    become_user: consul
+    become_method: sudo
+    async: 10000 
+    poll: 0
+    when: inventory_hostname in groups['microserviceB']
+
+
+
+  - name: run consul A
+    command: consul agent -data-dir=/etc/consul/data -node=agent-one -bind=192.168.56.103 -enable-script-checks=true -config-dir=/etc/consul.d
+    become: yes
+    become_user: consul
+    become_method: sudo
+    async: 10000 
+    poll: 0
+    when: inventory_hostname in groups['microserviceA']
+
+  - name: run consul B 
+    command: consul agent -data-dir=/etc/consul/data -node=agent-two -bind=192.168.56.104 -enable-script-checks=true -config-dir=/etc/consul.d
+    become: yes
+    become_user: consul
+    become_method: sudo
+    async: 10000 
+    poll: 0
+    when: inventory_hostname in groups['microserviceB']
+
 
   - name: join discovery service  
     command: consul join 192.168.56.102 
     become: yes
     become_user: microservices
     become_method: sudo
-    async: 5
+    async: 10000 
     poll: 0
 
 
